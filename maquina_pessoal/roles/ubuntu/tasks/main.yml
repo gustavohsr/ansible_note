@@ -1,0 +1,370 @@
+---
+
+  - name: Instalando pacotes essenciais - Distros Debian/Ubuntu
+    apt:
+      name: [vim, git, curl, software-properties-common, tmux, zip, unzip, rar, unrar, powerline, apt-transport-https, vlc]
+      state: latest
+    tags: pacotes_essenciais
+
+
+  - name: Instalando TeamViewer - Distros Ubuntu/Debian
+    apt:
+      deb: "{{ teamviewer }}"
+
+
+  - name: Configurando tmux.conf
+    get_url:
+      url: "{{ tmux_conf }}"
+      dest: ~alyson
+      mode: 0644
+      owner: alyson
+      group: alyson
+    tags: tmux_conf
+
+  - name: Configurando tmux.conf.local
+    get_url:
+      url: "{{ tmux_conf_local }}"
+      dest: ~alyson
+      mode: 0644
+      owner: alyson
+      group: alyson
+    tags: tmux_conf_local
+
+
+  - name: Adicionando key GPG do Sublime-Text - Distros Debian/Ubuntu
+    apt_key:
+      url: https://download.sublimetext.com/sublimehq-pub.gpg
+      state: present
+    ignore_errors: true
+
+
+  - name: Adicionando repositório do Sublime-Text - Distros Debian/Ubuntu
+    apt_repository:
+      repo: "{{ repo_sublimetext }}"
+      filename: sublime_text
+      state: present
+    register: sublime_text
+
+
+  - name: Instalando Sublime-Text - Distros Debian/Ubuntu
+    apt:
+      name: sublime-text
+      state: latest
+      force: yes
+      update_cache: yes
+    when: sublime_text is success
+    tags: install_sublime_text
+
+  - name: Verificando se o chefDK existe
+    command: chef-apply --version
+    register: chefdk_command
+    tags: chefdk_command
+    ignore_errors: true
+
+  - name: Baixando script do ChefDK - Distros Debian/Ubuntu
+    get_url: 
+      url: https://omnitruck.chef.io/install.sh
+      dest: /tmp/chefdk.sh
+      mode: 0755
+    when: chefdk_command is failed
+    register: script_chefdk
+    ignore_errors: true
+    tags: script_chefdk
+
+
+  - name: Instalando ChefDK - Distros Debian/Ubuntu
+    command: ./chefdk.sh
+    args:
+      chdir: /tmp/
+    when: script_chefdk == 'result is succeeded'
+    register: install_chef
+    tags: install_chef
+    ignore_errors: true
+
+
+  - name: Removendo script /tmp/chefdk.sh - Distros Debian/Ubuntu
+    file:
+      path: /tmp/chefdk.sh
+      state: absent
+    when: install_chef is success
+
+  - name: Verificando se o docker existe
+    command: docker --version
+    register: docker_command
+    tags: docker_command
+    ignore_errors: true
+
+  - name: Baixando script do Docker - Distros Debian/Ubuntu
+    get_url:
+      url: https://get.docker.com
+      dest: /tmp/docker.sh
+      mode: 0755
+    when: docker_command is failed
+    register: script_docker
+    tags: script_docker
+    ignore_errors: true
+
+
+  - name: Instalando Docker - Distros Debian/Ubuntu
+    command: /tmp/docker.sh
+    when: script_docker == 'result is succeeded'
+    register: install_docker
+    tags: install_docker
+    ignore_errors: true
+
+
+  - name: Removendo script /tmp/docker.sh - Distros Debian/Ubuntu
+    file:
+      path: /tmp/docker.sh
+      state: absent
+    when: install_docker is success
+    tags: remove_script_docker
+
+
+  - name: Instalando Virtualbox - Distros Debian/Ubuntu
+    apt:
+      deb: "{{ virtualbox }}"
+    tags: install_virtualbox
+
+
+  - name: Instalando AWSCLI - Distros Debian/Ubuntu
+    apt:
+      name: awscli
+      state: latest
+      force: yes
+    tags: install_awscli
+
+
+  - name: Instalando Remmina - Distros Debian/Ubuntu
+    apt:
+      name: [remmina, remmina-plugin-rdp, libfreerdp-plugins-standard]
+      state: latest
+      update_cache: yes
+      cache_valid_time: 3600
+      force: yes
+    ignore_errors: true
+    tags: install_remmina
+
+
+  - name: Instalando Zsh - Distros Debian/Ubuntu
+    apt:
+      name: zsh
+      state: latest
+    register: install_zsh
+    tags: install_zsh
+
+
+  - name: Checando se Oh-My-Zsh existe
+    stat:
+      path: ~alyson/.oh-my-zsh
+    remote_user: alyson
+    when: install_zsh is success
+    register: check_ohmyzsh
+    tags: check_ohmyzsh
+
+
+  - name: Baixando Oh-My-Zsh
+    shell: wget --no-check-certificate http://install.ohmyz.sh -O - | sh
+    args:
+      chdir: ~alyson
+      warn: false
+    when: not check_ohmyzsh.stat.exists  # Se não existir, ele vai executar a task
+    tags: down_zsh
+    become_user: alyson
+
+
+  - name: Configurando ZSH
+    get_url: 
+      url: "{{ zsh_config }}"
+      dest: ~alyson
+      owner: alyson
+      group: alyson
+      mode: 0644
+    tags: zsh_config
+
+  - name: Configurando Git Config
+    get_url: 
+      url: "{{ git_config }}"
+      dest: ~alyson
+      owner: alyson
+      group: alyson
+      mode: 0644
+    tags: git_config
+
+
+  - name: Configurando ~/user/.ssh/config
+    get_url:
+      url: "{{ config_ssh }}"
+      dest: ~alyson/.ssh/
+      mode: 0644
+      owner: alyson
+      group: alyson
+    tags: config_ssh
+
+
+  - name: Adicionando key do repositório Vagrant - Distros Debian/Ubuntu
+    apt_key:
+      keyserver: pgp.mit.edu
+      id: AD319E0F7CFFA38B4D9F6E55CE3F3DE92099F7A4
+      state: present
+    tags: key_vagrant
+    register: addkey_vagrant
+    ignore_errors: true
+
+
+  - name: Adicionando repositório Vagrant - Distros Debian/Ubuntu
+    apt_repository:
+      repo: deb https://vagrant-deb.linestarve.com/ any main
+      filename: vagrant
+      state: present
+    tags: repo_vagrant
+    register: addrepo_vagrant
+
+
+  - name: Instalando Vagrant - Distros Debian/Ubuntu
+    apt:
+      name: vagrant
+      state: latest
+      update_cache: yes
+    when: addrepo_vagrant is success
+    tags: install_vagrant
+
+
+  - name: Adicionando repositório NeoVim - Distros Debian/Ubuntu
+    apt_repository:
+      repo: ppa:neovim-ppa/stable
+      state: present
+      filename: neovim
+      codename: bionic
+    register: repo_neovim
+    tags: repo_neovim
+
+
+  - name: Instalando NeoVim e Pré-requisitos do mesmo - Distros Debian/Ubuntu
+    apt:
+      name: [neovim, python-dev, python-pip, python3-dev, python3-pip, python3-setuptools]
+      state: latest
+      update_cache: yes
+      force: yes
+    register: install_neovim
+    when: repo_neovim is success
+    tags: install_neovim
+
+
+  - name: Setando NeoVim como editor padrão
+    alternatives:
+      name: vim
+      path: /usr/bin/nvim
+    when: install_neovim == 'result is succeeded'
+    tags: set_neovim
+    ignore_errors: true
+
+
+  - name: Criando diretório ~alyson/.config/
+    file:
+      path: ~alyson/.config/
+      state: directory
+      owner: alyson
+      group: alyson
+    tags: create_dir_neovim
+
+
+  - name: Clonando meu repositório do Neovim
+    git:
+      repo: "{{ reponeovim }}"
+      dest: ~alyson/.config/nvim
+      recursive: yes
+      update: yes
+      clone: yes
+      force: yes
+    tags: clone_nvim
+    ignore_errors: true
+
+
+  - name: Adicionando key do repositório Spotify - Distros Debian/Ubuntu
+    apt_key:
+      keyserver: hkp://keyserver.ubuntu.com:80
+      id: 931FF8E79F0876134EDDBDCCA87FF9DF48BF1C90
+
+  
+  - name: Adicionando repositório Spotify - Distros Debian/Ubuntu
+    apt_repository:
+      repo: deb http://repository.spotify.com stable non-free
+      state: present
+      filename: spotify
+    register: repo_spotify
+
+
+  - name: Instalando Spotify - Distros Debian/Ubuntu
+    apt:
+      name: spotify-client
+      state: latest
+      update_cache: yes
+      force: yes
+    when: repo_spotify is success
+
+  - name: Instalando GParted - Distros Debian/Ubuntu
+    apt:
+      name: gparted
+      state: latest
+    tags: install_gparted
+
+
+  - name: Verificando se o Terraform existe
+    command: terraform --version
+    register: check_terraform
+    ignore_errors: true
+    tags: check_terraform
+
+
+  - name: Baixando e Instalando Terraform
+    unarchive:
+      src: "{{ down_terraform }}"
+      dest: /usr/local/bin
+      remote_src: yes
+      mode: 0755
+    when: check_terraform is failed
+    tags: install_terraform
+
+  - name: Instalando Google Chrome
+    apt:
+      deb: "{{ chrome }}"
+    tags: chrome
+
+  - name: Instalando Qbittorrent
+    apt:
+      name: qbittorrent
+      state: latest
+
+  - name: Instalando VsCode
+    apt:
+      deb: "{{ vscode }}"
+    tags: vscode
+
+
+  - name: Add usuário ao grupo vboxusers e docker e definindo /bin/zsh como padrão
+    user:
+      name: alyson
+      shell: /bin/zsh
+      groups: vboxusers,docker
+      append: yes
+
+
+      # - name: Instalando Forticlient/SSLVPN
+      #   apt:
+      #     deb: "{{ forticlient }}"
+      #   tags: forticlient
+
+
+  - name: Instalando Whois
+    apt:
+      name: whois
+      state: latest
+      update_cache: yes
+      cache_valid_time: 3600
+    tags: whois
+
+  - name: Instalando Guardião Itaú
+    apt:
+      deb: "{{ itau }}"
+    tags: itau
